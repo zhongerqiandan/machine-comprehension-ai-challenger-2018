@@ -28,3 +28,30 @@
 ## 关键结构和实现
 该模型的结构图如下：
 ![image](https://github.com/zhongerqiandan/machine-comprehension-ai-challenger-2018/blob/master/1.png)
+
+* 输入模块：从上图可以清楚的看出，在该模型中的输入编码模块，首先采用word Embedding 和character Embedding策略生成对应每个单词的词向量。其中，word Embedding使用的算法是Glove，而character Embedding采用的是类似于yoon kim提出的卷积神经网络架构，只不过输入时每一个character Embedding，然后通过卷积和max-pooling生成词向量。接下来，将Character embedding和word embedding进行拼接，一起输入到双向LSTM中，这个部分被称之为Contextual Embedding layer，假设原文本的长度为T，单向LSTM的输出维度为d∗T，那么双向LSTM的输出则为2d∗T。对于汉字来说，可以将其中的character Embedding换成字向量。word_embedding很简单，直接用tf.nn.embedding_lookup实现就可以，character Embedding实现如下：
+
+
+            def char_embed_layer(self,input_char,num_filters=3,filter_size=2):
+                    with tf.name_scope('char_embedding'):
+                        embedded_chars = tf.nn.embedding_lookup(self.char_W,input_char)
+                        embedded_chars_expanded = tf.expand_dims(embedded_chars,-1)
+
+                        filter_shape = [filter_size, self.char_embed_size, 1, num_filters]
+                        W = tf.Variable(tf.truncated_normal(filter_shape,stddev=0.1),name='W')
+                        b = tf.Variable(tf.constant(0.1,shape=[num_filters]),name='b')
+                        conv = tf.nn.conv2d(embedded_chars_expanded,W,strides=[1,1,1,1],padding='VALID',name='conv')
+                        h = tf.nn.relu(tf.nn.bias_add(conv,b),name='relu')
+                        pooled = tf.nn.max_pool(h,ksize=[1,self.word_length - filter_size + 1,1,1],strides=[1,1,1,1],padding='VALID',name='pool')
+
+                        pooled_shape = pooled.get_shape()
+                        total_size = None
+                        for idx in list(range(len(pooled_shape)))[1:]:
+                            if total_size is None:
+                                total_size = int(pooled_shape[-1 * idx])
+                            else:
+                                total_size *= int(pooled_shape[-1 * idx])
+
+                        print('total size of char_embed_layer:{}'.format(total_size))
+
+                        return tf.reshape(pooled,[-1,int(total_size)])
