@@ -55,3 +55,29 @@
                         print('total size of char_embed_layer:{}'.format(total_size))
 
                         return tf.reshape(pooled,[-1,int(total_size)])
+                        
+* 交互模块：接下来在context内容和query内容交互模块部分，采用了context-to-query和query-to-context的double attention机制。假设context为H，query为U。首先针对context中的每一个单词和query中的每一个单词进行相似度的计算，这样就能生成一个相似度的矩阵Stj=α(Ht,Uj)=WTs[h;u;h⨀u]，其中Ws是一个维度为6d的向量，它也是模型参数的一部分，随着模型一起进行训练。这个相似度矩阵S是用来辅助context-to-query和query-to-context attention系数的生成。S的实现代码如下：
+
+                def similarity_layer(self,H,U):
+                    d = int(H.get_shape()[-1])
+                    h_dim = int(H.get_shape()[-2])
+                    u_dim = int(U.get_shape()[-2])
+                    print('Similarity layer h_dim:{},u_dim:{}'.format(h_dim,u_dim))
+
+                    Sw = tf.get_variable('Sw',shape=[3 * d,1],initializer=tf.contrib.layers.xavier_initializer())
+                    H = tf.reshape(tf.transpose(H,[0,2,1]),[-1,h_dim])
+                    U = tf.reshape(tf.transpose(U,[0,2,1]),[-1,u_dim])
+
+                    fH = tf.tile(H,[u_dim,1])
+                    fU = tf.tile(tf.expand_dims(tf.concat(tf.unstack(U,axis=-1),axis=0),-1),[1,h_dim])
+                    fHU = fH * fU
+
+                    fH = tf.reshape(fH,[-1,u_dim,int(1 * d),h_dim])
+                    fU = tf.reshape(fU,[-1,u_dim,int(1 * d),h_dim])
+                    fHU = tf.reshape(fHU,[-1,u_dim,int(1 * d),h_dim])
+
+                    f = tf.concat([fH,fU,fHU],axis=2)
+                    f = tf.reshape(tf.transpose(f,[0,1,3,2]),[-1,int(3 * d)])
+
+                    #[batch_num,T,J]
+                    return tf.transpose(tf.reshape(tf.squeeze(tf.matmul(f,Sw)),[-1,u_dim,h_dim]),[0,2,1])
