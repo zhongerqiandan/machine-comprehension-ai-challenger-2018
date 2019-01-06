@@ -81,3 +81,30 @@
 
                     #[batch_num,T,J]
                     return tf.transpose(tf.reshape(tf.squeeze(tf.matmul(f,Sw)),[-1,u_dim,h_dim]),[0,2,1])
+
+context-to-query Attention：
+简单来说，就是用query中所有的加权和来表征context中的每一个词向量，这个加权的系数就是通过对上述生成的S矩阵中的每一个行来做一个softmax归一化得到。这样得到的表征U∗则是维度为2d长度为T的矩阵。
+
+            self.A = tf.nn.softmax(self.S,dim=-1,name='A')
+                    d = self.U.get_shape()[-1]
+                    self.U_bar_list = []
+                    for i in range(self.batch_num):
+                        A = tf.squeeze(tf.slice(self.A,[i,0,0],[1,-1,-1]))
+                        U = tf.squeeze(tf.slice(self.U,[i,0,0],[1,-1,-1]))
+                        self.U_bar_list.append(tf.expand_dims(tf.matmul(A,U),0))
+
+                    self.U_bar = tf.concat(self.U_bar_list,axis=0)
+
+query-to-context Attention：
+这个就是针对context中的每一个词，把它和query词语中相似性最大的取出来作为其权重，然后针对context中每一个词语的权重进行softmax生成归一化的权重，然后使用这个归一化的权重对context中的词向量进行加权求和，生成唯一的query-to-context Attention机制下的词向量，把这个词向量复制T次，同样生成了维度为2d长度为T的矩阵H∗。接下来将生成的H∗和 U∗以及原始的context表征H一起输入函数G=β(H∗,U∗,H)=[h;u∗;h⨀u∗;h⨀h∗]，很显然这个输出矩阵的维度是8d∗T。其实这个β函数可以有很多种的表现形式，这里面例子给出的是最简单的直接拼接的方式，同时还可以尝试multi-layer perceptron 等方式。上述生成的矩阵G在原文中被描述为：“ encodes the query-aware representations of context words”。
+
+    self.b = tf.nn.softmax(tf.reduce_max(self.S,axis=-1),dim=-1,name='b')
+        self.h_bar_list = []
+        
+        for i in range(self.batch_num):
+            b = tf.slice(self.b,[i,0],[1,-1])
+            H = tf.squeeze(tf.slice(self.H,[i,0,0],[1,-1,-1]))
+            self.h_bar_list.append(tf.matmul(b,H))
+            
+        self.h_bar = tf.concat(self.h_bar_list,axis=1)
+        self.H_bar = tf.reshape(tf.tile(self.h_bar,[1,self.T]),[-1,self.T,int(d)])
