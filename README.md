@@ -22,4 +22,9 @@
         }
         
 训练集给出上述全部字段，测试集不给answer字段
-
+# 模型与实现
+## 总体思路
+本次比赛的题型和sQuAD不同。sQuAD是给出原文和问题，然后答案在原文中，模型需要给出答案在原文中的开始和结束位置。本次比赛是给出原文和问题，给出三个候选答案，模型需要给出一个最佳选项。模型总体借鉴BIDAF，修改output layer，让其输出一个词向量，然后用输出的词向量与候选答案中的三个词向量做相似度计算，然后将三个相似度归一化，看成三个概率，用cross entropy 做损失函数训练模型。这样做在验证集上训练第二轮后模型准确率达到67以上，但是后面就开始过拟合。后来我将BIDAF中contextual embed layer和modeling layer中的lstm全部换成了google在attention is all you need里的transformer的结构，但是验证集准确率依然没有上升。后来我发现我没有用position embedding，如果用了pe效果应该会好，但是最近都没什么时间再做。下面是BIDAF的结构介绍和几个我觉得重要地方的实现。参考2017年的在ICLR会议上发表的论文《BI-DIRECTIONAL ATTENSION FLOW FOR MACHINE COMPREHENSION》
+## 关键结构和实现
+该模型的结构图如下：
+![image](https://github.com/zhongerqiandan/machine-comprehension-ai-challenger-2018/blob/master/1.png)
